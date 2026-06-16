@@ -1,0 +1,130 @@
+{
+	"name": "MDF_SCD_CUSTOMER",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "DS_customer_source",
+						"type": "DatasetReference"
+					},
+					"name": "SrcNewCustomer"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_dim_customer",
+						"type": "DatasetReference"
+					},
+					"name": "SrcOldCustomer"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "DS_dim_customer",
+						"type": "DatasetReference"
+					},
+					"name": "SNKNEWRECORD"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_dim_customer",
+						"type": "DatasetReference"
+					},
+					"name": "SNKEXPIREOLD"
+				}
+			],
+			"transformations": [
+				{
+					"name": "LKPCustomer"
+				},
+				{
+					"name": "DRVChangeFlag"
+				},
+				{
+					"name": "SPLITCUSTOMER"
+				},
+				{
+					"name": "DRVNEWRECORD"
+				},
+				{
+					"name": "DRVEXPIREOLD"
+				},
+				{
+					"name": "DRVINSERTCHANGED"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          CustomerID as integer,",
+				"          Name as string,",
+				"          City as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> SrcNewCustomer",
+				"source(output(",
+				"          SurrogateKey as integer,",
+				"          CustomerID as integer,",
+				"          Name as string,",
+				"          City as string,",
+				"          StartDate as timestamp,",
+				"          EndDate as timestamp,",
+				"          IsCurrent as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> SrcOldCustomer",
+				"SrcNewCustomer, SrcOldCustomer lookup(SrcNewCustomer@CustomerID == SrcOldCustomer@CustomerID,",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> LKPCustomer",
+				"LKPCustomer derive(ChangeFlag = iif(\r",
+				"    isNull(SrcOldCustomer@CustomerID),\r",
+				"    'NEW',\r",
+				"    iif(\r",
+				"        SrcNewCustomer@City != SrcOldCustomer@City,\r",
+				"        'CHANGED',\r",
+				"        'NOCHANGE'\r",
+				"    )\r",
+				")) ~> DRVChangeFlag",
+				"DRVChangeFlag split(ChangeFlag == 'NEW',",
+				"     ChangeFlag == 'CHANGED',",
+				"     ChangeFlag == 'NOCHANGE',",
+				"     disjoint: false) ~> SPLITCUSTOMER@(NEWRECORD, CHANGEDRECORD, NOCHANGERECORD)",
+				"SPLITCUSTOMER@NEWRECORD derive(StartDate = currentTimestamp(),",
+				"          EndDate = toTimestamp('9999-12-31 00:00:00'),",
+				"          IsCurrent = 'Y') ~> DRVNEWRECORD",
+				"DRVINSERTCHANGED derive(EndDate = currentTimestamp(),",
+				"          IsCurrent = 'N') ~> DRVEXPIREOLD",
+				"SPLITCUSTOMER@CHANGEDRECORD derive(StartDate = currentTimestamp(),",
+				"          EndDate = toTimestamp('9999-12-31 00:00:00'),",
+				"          IsCurrent = 'Y') ~> DRVINSERTCHANGED",
+				"DRVNEWRECORD sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> SNKNEWRECORD",
+				"DRVEXPIREOLD sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:true,",
+				"     upsertable:false,",
+				"     keys:['SurrogateKey'],",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> SNKEXPIREOLD"
+			]
+		}
+	}
+}
