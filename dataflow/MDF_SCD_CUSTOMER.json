@@ -33,6 +33,13 @@
 						"type": "DatasetReference"
 					},
 					"name": "SNKEXPIREOLD"
+				},
+				{
+					"dataset": {
+						"referenceName": "DS_dim_customer",
+						"type": "DatasetReference"
+					},
+					"name": "SNKINSERTCHANGED"
 				}
 			],
 			"transformations": [
@@ -123,7 +130,17 @@
 				"     format: 'table',",
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true,",
-				"     errorHandlingOption: 'stopOnFirstError') ~> SNKEXPIREOLD"
+				"     errorHandlingOption: 'stopOnFirstError') ~> SNKEXPIREOLD",
+				"DRVINSERTCHANGED sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> SNKINSERTCHANGED"
 			]
 		}
 	}
